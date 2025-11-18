@@ -60,10 +60,28 @@ func (s *Server) authenticate(r *http.Request) bool {
 	return credentials[0] == s.basicAuth.Username && credentials[1] == s.basicAuth.Password
 }
 
+// corsMiddleware adds CORS headers to responses
+func (s *Server) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers
+		s.setCORSHeaders(w)
+
+		// Handle preflight OPTIONS requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 // requireAuth middleware
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !s.authenticate(r) {
+			// Ensure CORS headers are set before error response
+			s.setCORSHeaders(w)
 			w.Header().Set("WWW-Authenticate", `Basic realm="HSA Tracker"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -72,14 +90,25 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// setCORSHeaders sets CORS headers on a response
+func (s *Server) setCORSHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Max-Age", "3600")
+}
+
 // handleControllers serves controller JavaScript files with correct MIME type
 func (s *Server) handleControllers(w http.ResponseWriter, r *http.Request) {
+	// Set CORS headers for JavaScript modules
+	s.setCORSHeaders(w)
+
 	fs := http.FS(getControllersFS())
 	fileServer := http.FileServer(fs)
 
 	// Set correct MIME type for JavaScript modules
 	if strings.HasSuffix(r.URL.Path, ".js") {
-		w.Header().Set("Content-Type", "application/javascript")
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	}
 	// Strip the /static/controllers/ prefix to get just the filename
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, "/static/controllers/")
@@ -117,7 +146,12 @@ func (s *Server) registerRoutes() {
 // Start starts the HTTP server
 func (s *Server) Start(addr string) error {
 	slog.Info("Starting server", "address", addr)
-	return http.ListenAndServe(addr, s.mux)
+	// Wrap the mux with CORS middleware to handle all requests including OPTIONS
+	return http.ListenAndServe(addr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+			s.mux.ServeHTTP(w, r)
+		})(w, r)
+	}))
 }
 
 // ServeHTTP implements http.Handler for testing

@@ -27,6 +27,32 @@ cd hsa-tracker
 go build -o hsa-tracker ./cmd/hsa-tracker
 ```
 
+### Download Pre-built Binaries
+
+Pre-built binaries are available in the [Releases](https://github.com/zombor/hsa-tracker/releases) section for Linux and macOS (both amd64 and arm64).
+
+#### macOS Gatekeeper Warning
+
+When downloading binaries from GitHub, macOS may show a security warning because the binary is not code-signed. To run the binary:
+
+**Option 1: Right-click method (recommended)**
+1. Right-click (or Control-click) on the `hsa-history` binary
+2. Select "Open" from the context menu
+3. Click "Open" in the security dialog
+4. The binary will now run normally
+
+**Option 2: Remove quarantine attribute**
+```bash
+# After extracting the tar.gz file
+xattr -d com.apple.quarantine hsa-history
+./hsa-history
+```
+
+**Option 3: Allow in System Settings**
+1. Go to System Settings → Privacy & Security
+2. Scroll down to find the blocked app message
+3. Click "Open Anyway"
+
 ## Usage
 
 ### Quick Start

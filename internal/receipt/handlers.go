@@ -9,8 +9,23 @@ import (
 	"strings"
 )
 
+// corsError writes an error response with CORS headers set
+func corsError(w http.ResponseWriter, message string, code int) {
+	setCORSHeaders(w)
+	http.Error(w, message, code)
+}
+
+// setCORSHeaders sets CORS headers on a response
+func setCORSHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Max-Age", "3600")
+}
+
 // handleIndex serves the HTML interface
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	setCORSHeaders(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(indexHTML)
 }
@@ -20,7 +35,7 @@ func (s *Server) handleListReceipts(w http.ResponseWriter, r *http.Request) {
 	receipts, err := s.service.ListReceipts()
 	if err != nil {
 		slog.Error("Error listing receipts", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		corsError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -37,6 +52,7 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 	maxFormSize := int64(50 << 20) // 50MB
 	if err := r.ParseMultipartForm(maxFormSize); err != nil {
 		slog.Error("Error parsing multipart form", "error", err)
+		setCORSHeaders(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		errorMsg := "Error parsing form"
@@ -52,6 +68,7 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 	f, header, err := r.FormFile("file")
 	if err != nil {
 		slog.Error("Error getting file from form", "error", err)
+		setCORSHeaders(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		errorMsg := "No file provided"
@@ -67,6 +84,7 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 
 	// Check file size before reading
 	if header.Size > maxFormSize {
+		setCORSHeaders(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -79,6 +97,7 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 	data, err := io.ReadAll(f)
 	if err != nil {
 		slog.Error("Error reading file data", "error", err, "filename", header.Filename)
+		setCORSHeaders(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -116,6 +135,7 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 	receipt, err := s.service.ProcessReceipt(header.Filename, data, contentType)
 	if err != nil {
 		slog.Error("Error processing receipt", "filename", header.Filename, "error", err)
+		setCORSHeaders(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -135,12 +155,12 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetReceipt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
-		http.Error(w, "Receipt ID required", http.StatusBadRequest)
+		corsError(w, "Receipt ID required", http.StatusBadRequest)
 		return
 	}
 	receipt, err := s.service.GetReceipt(id)
 	if err != nil {
-		http.Error(w, "Receipt not found", http.StatusNotFound)
+		corsError(w, "Receipt not found", http.StatusNotFound)
 		return
 	}
 
@@ -154,12 +174,12 @@ func (s *Server) handleGetReceipt(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetReceiptFile(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
-		http.Error(w, "Receipt ID required", http.StatusBadRequest)
+		corsError(w, "Receipt ID required", http.StatusBadRequest)
 		return
 	}
 	data, contentType, err := s.service.GetReceiptFile(id)
 	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
+		corsError(w, "File not found", http.StatusNotFound)
 		return
 	}
 
@@ -171,11 +191,11 @@ func (s *Server) handleGetReceiptFile(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteReceipt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
-		http.Error(w, "Receipt ID required", http.StatusBadRequest)
+		corsError(w, "Receipt ID required", http.StatusBadRequest)
 		return
 	}
 	if err := s.service.DeleteReceipt(id); err != nil {
-		http.Error(w, "Error deleting receipt", http.StatusInternalServerError)
+		corsError(w, "Error deleting receipt", http.StatusInternalServerError)
 		return
 	}
 
@@ -187,7 +207,7 @@ func (s *Server) handleListReimbursements(w http.ResponseWriter, r *http.Request
 	reimbursements, err := s.service.ListReimbursements()
 	if err != nil {
 		slog.Error("Error listing reimbursements", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		corsError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -209,13 +229,14 @@ func (s *Server) handleCreateReimbursement(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		corsError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	reimbursement, err := s.service.CreateReimbursement(req.ReceiptIDs)
 	if err != nil {
 		slog.Error("Error creating reimbursement", "error", err)
+		setCORSHeaders(w)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -235,12 +256,12 @@ func (s *Server) handleCreateReimbursement(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleGetReimbursement(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
-		http.Error(w, "Reimbursement ID required", http.StatusBadRequest)
+		corsError(w, "Reimbursement ID required", http.StatusBadRequest)
 		return
 	}
 	reimbursement, receipts, err := s.service.GetReimbursementWithReceipts(id)
 	if err != nil {
-		http.Error(w, "Reimbursement not found", http.StatusNotFound)
+		corsError(w, "Reimbursement not found", http.StatusNotFound)
 		return
 	}
 
@@ -257,12 +278,15 @@ func (s *Server) handleGetReimbursement(w http.ResponseWriter, r *http.Request) 
 
 // handleStaticCSS serves the CSS file
 func (s *Server) handleStaticCSS(w http.ResponseWriter, r *http.Request) {
+	setCORSHeaders(w)
 	w.Header().Set("Content-Type", "text/css")
 	w.Write(appCSS)
 }
 
 // handleStaticJS serves the JavaScript file
 func (s *Server) handleStaticJS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript")
+	setCORSHeaders(w)
+	// Use module MIME type for ES6 modules
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Write(appJS)
 }
