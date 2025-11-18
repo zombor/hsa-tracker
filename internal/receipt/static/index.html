@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HSA Tracker</title>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body data-controller="tabs">
+    <h1>HSA Tracker</h1>
+    
+    <div class="tabs" data-tabs-target="tabs">
+        <button class="tab active" data-tabs-target="tab" data-tab-name="receipts" data-action="click->tabs#switch">Receipts</button>
+        <button class="tab" data-tabs-target="tab" data-tab-name="reimbursements" data-action="click->tabs#switch">Reimbursements</button>
+    </div>
+
+    <div id="receiptsTab" class="tab-content active" data-tabs-target="content" data-tab-name="receipts" data-controller="receipts">
+        <div class="summary">
+            <div class="summary-item">
+                <div class="summary-label">Total Receipts</div>
+                <div class="summary-value" data-receipts-target="totalCount">0</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Total Value</div>
+                <div class="summary-value" data-receipts-target="totalValue">$0.00</div>
+            </div>
+        </div>
+
+        <div class="upload-section" data-controller="upload">
+            <h2>Upload Receipts</h2>
+            <form class="upload-form" data-action="submit->upload#submit">
+                <input type="file" data-upload-target="fileInput" name="file" accept="image/*,application/pdf" multiple>
+                <button type="submit" data-upload-target="uploadBtn">Upload & Scan Receipts</button>
+                <div data-upload-target="status" class="status"></div>
+                <div data-upload-target="progress" class="upload-progress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" data-upload-target="progressFill"></div>
+                    </div>
+                    <div class="progress-text" data-upload-target="progressText">0 / 0</div>
+                </div>
+            </form>
+        </div>
+
+        <div class="selection-bar" data-receipts-target="selectionBar" id="selectionBar">
+            <span data-receipts-target="selectionCount" id="selectionCount">0 receipts selected</span>
+            <button class="btn-success" data-action="click->receipts#createReimbursement">Mark as Reimbursed</button>
+        </div>
+
+        <div class="receipts-list">
+            <div data-receipts-target="container" id="receiptsContainer">
+                <div class="empty-state">Loading receipts...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reimbursementsTab" class="tab-content" data-tabs-target="content" data-tab-name="reimbursements" data-controller="reimbursements">
+        <div class="reimbursements-list">
+            <div data-reimbursements-target="container" id="reimbursementsContainer">
+                <div class="empty-state">Loading reimbursements...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reimbursementDetail" class="tab-content" style="display: none;" data-tabs-target="reimbursementDetail" data-controller="reimbursement-detail">
+        <div class="reimbursement-detail">
+            <button class="back-button" data-action="click->reimbursement-detail#back">← Back to Reimbursements</button>
+            <div data-reimbursement-detail-target="content" id="reimbursementDetailContent"></div>
+        </div>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+</body>
+</html>
+
