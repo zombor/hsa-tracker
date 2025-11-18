@@ -1,0 +1,73 @@
+project_name: hsa-history
+
+builds:
+  # Standard builds (Linux AMD64, Darwin AMD64, Windows AMD64)
+  - id: amd64
+    main: ./cmd/hsa-history
+    binary: hsa-history
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+  
+  # Linux ARM64 (needs cross-compiler)
+  - id: linux-arm64
+    main: ./cmd/hsa-history
+    binary: hsa-history
+    goos:
+      - linux
+    goarch:
+      - arm64
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    ldflags:
+      - -s -w
+  
+  # Darwin ARM64 (Apple Silicon)
+  - id: darwin-arm64
+    main: ./cmd/hsa-history
+    binary: hsa-history
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+  
+  # Windows ARM64
+  - id: windows-arm64
+    main: ./cmd/hsa-history
+    binary: hsa-history
+    goos:
+      - windows
+    goarch:
+      - arm64
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+
+checksum:
+  name_template: 'checksums.txt'
+
+release:
+  mode: replace
+  header: |
+    ## Release {{ .Tag }}
+    
+    Built from commit {{ .Commit }}
+    
+    ### Downloads
+    
+    See the assets below for platform-specific binaries.
+

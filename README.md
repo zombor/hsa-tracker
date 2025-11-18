@@ -16,7 +16,7 @@ A web-based application for tracking Health Savings Account (HSA) expenses. Uplo
 
 ### Prerequisites
 
-- Go 1.23 or later
+- Go 1.24 or later
 - Google Gemini API key (for cloud-based scanning) OR Ollama installed locally (for local scanning)
 
 ### Build

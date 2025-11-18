@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.tag.outputs.tag }}
+      tag_exists: ${{ steps.tag.outputs.exists }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(cat cmd/hsa-history/VERSION.txt | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create git tag if needed
+        id: tag
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            TAG_COMMIT=$(git rev-parse "$TAG")
+            if [ "$TAG_COMMIT" = "$CURRENT_COMMIT" ]; then
+              echo "Tag $TAG already exists and points to current commit"
+              echo "exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "Error: Tag $TAG exists but points to different commit"
+              echo "Tag commit: $TAG_COMMIT"
+              echo "Current commit: $CURRENT_COMMIT"
+              exit 1
+            fi
+          else
+            echo "Creating tag $TAG"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+  build:
+    name: Build Binaries
+    needs: prepare
+    if: needs.prepare.outputs.tag_exists == 'false'
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+            cc: gcc
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+            cc: aarch64-linux-gnu-gcc
+          - os: darwin
+            arch: amd64
+            runner: macos-latest
+            cc: clang
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+            cc: clang
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install C compiler (Linux ARM64)
+        if: matrix.os == 'linux' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(cat cmd/hsa-history/VERSION.txt | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CC: ${{ matrix.cc }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          OUTPUT="hsa-history"
+          OUTPUT_NAME="hsa-history_${VERSION}_${GOOS}_${GOARCH}"
+          DIR_NAME="${OUTPUT_NAME}"
+          TAR_NAME="${OUTPUT_NAME}.tar.gz"
+          
+          mkdir -p dist/${DIR_NAME}
+          go build -ldflags="-s -w" -o dist/${DIR_NAME}/${OUTPUT} ./cmd/hsa-history
+          cd dist/${DIR_NAME}
+          tar czf ../${TAR_NAME} ${OUTPUT}
+          cd ../..
+          echo "Built: ${TAR_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: [prepare, build]
+    if: needs.prepare.outputs.tag_exists == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Release ${{ needs.prepare.outputs.tag }}
+          files: dist/**/*.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
