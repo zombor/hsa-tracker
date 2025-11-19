@@ -224,7 +224,7 @@ var _ = Describe("Service", func() {
 		service = NewServiceWithDeps(db, scanner, storage, idGen, timeSrc)
 	})
 
-	Describe("ProcessReceipt", func() {
+	Describe("ScanReceipt", func() {
 		var (
 			filename    string
 			data        []byte
@@ -240,7 +240,7 @@ var _ = Describe("Service", func() {
 		})
 
 		JustBeforeEach(func() {
-			receipt, err = service.ProcessReceipt(filename, data, contentType)
+			receipt, err = service.ScanReceipt(filename, data, contentType)
 		})
 
 		When("processing succeeds", func() {
@@ -264,10 +264,9 @@ var _ = Describe("Service", func() {
 				Expect(receipt.Filename).To(Equal("test-id-123_receipt.jpg"))
 			})
 
-			It("should save the receipt to the database", func() {
-				saved, getErr := db.GetReceipt("test-id-123")
-				Expect(getErr).NotTo(HaveOccurred())
-				Expect(saved.ID).To(Equal(receipt.ID))
+			It("should NOT save the receipt to the database yet", func() {
+				_, getErr := db.GetReceipt("test-id-123")
+				Expect(getErr).To(HaveOccurred())
 			})
 
 			It("should save the file to storage", func() {
@@ -304,6 +303,42 @@ var _ = Describe("Service", func() {
 				Expect(storage.files).NotTo(HaveKey("test-id-123_receipt.jpg"))
 			})
 		})
+	})
+
+	Describe("CreateReceipt", func() {
+		var (
+			receipt *Receipt
+			err     error
+		)
+
+		BeforeEach(func() {
+			receipt = &Receipt{
+				ID:    "test-id-123",
+				Title: "Test Receipt",
+			}
+		})
+
+		JustBeforeEach(func() {
+			err = service.CreateReceipt(receipt)
+		})
+
+		When("save succeeds", func() {
+			It("should not return an error", func() {
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should save the receipt to the database", func() {
+				saved, getErr := db.GetReceipt("test-id-123")
+				Expect(getErr).NotTo(HaveOccurred())
+				Expect(saved.ID).To(Equal(receipt.ID))
+			})
+
+			It("should set CreatedAt and UpdatedAt", func() {
+				saved, _ := db.GetReceipt("test-id-123")
+				Expect(saved.CreatedAt).NotTo(BeZero())
+				Expect(saved.UpdatedAt).NotTo(BeZero())
+			})
+		})
 
 		When("database save fails", func() {
 			var setupErr error
@@ -315,10 +350,6 @@ var _ = Describe("Service", func() {
 
 			It("returns the error", func() {
 				Expect(err).To(MatchError(setupErr))
-			})
-
-			It("should clean up the saved file", func() {
-				Expect(storage.files).NotTo(HaveKey("test-id-123_receipt.jpg"))
 			})
 		})
 	})

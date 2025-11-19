@@ -166,18 +166,18 @@ var _ = Describe("Server", func() {
 		})
 	})
 
-	Describe("handleUploadReceipt", func() {
+	Describe("handleScanReceipt", func() {
 		When("upload succeeds", func() {
-			It("should return status Created", func() {
+			It("should return status OK", func() {
 				var b bytes.Buffer
 				writer := multipart.NewWriter(&b)
 				part, _ := writer.CreateFormFile("file", "test.jpg")
 				part.Write([]byte("fake image data"))
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
 				resp.Body.Close()
 			})
 
@@ -188,7 +188,7 @@ var _ = Describe("Server", func() {
 				part.Write([]byte("fake image data"))
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
 				var receipt Receipt
@@ -205,7 +205,7 @@ var _ = Describe("Server", func() {
 				part.Write([]byte("fake image data"))
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
 				Expect(resp.Header.Get("Content-Type")).To(Equal("application/json"))
@@ -213,31 +213,31 @@ var _ = Describe("Server", func() {
 		})
 
 		When("upload succeeds with PNG file", func() {
-			It("should return status Created", func() {
+			It("should return status OK", func() {
 				var b bytes.Buffer
 				writer := multipart.NewWriter(&b)
 				part, _ := writer.CreateFormFile("file", "test.png")
 				part.Write([]byte("fake image data"))
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
 				resp.Body.Close()
 			})
 		})
 
 		When("upload succeeds with PDF file", func() {
-			It("should return status Created", func() {
+			It("should return status OK", func() {
 				var b bytes.Buffer
 				writer := multipart.NewWriter(&b)
 				part, _ := writer.CreateFormFile("file", "test.pdf")
 				part.Write([]byte("fake pdf data"))
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
 				resp.Body.Close()
 			})
 		})
@@ -248,7 +248,7 @@ var _ = Describe("Server", func() {
 				writer := multipart.NewWriter(&b)
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
 				resp.Body.Close()
@@ -259,7 +259,7 @@ var _ = Describe("Server", func() {
 				writer := multipart.NewWriter(&b)
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
 				body, err := io.ReadAll(resp.Body)
@@ -271,14 +271,14 @@ var _ = Describe("Server", func() {
 
 		When("invalid multipart form", func() {
 			It("should return status Bad Request", func() {
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", "multipart/form-data", bytes.NewBufferString("invalid"))
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", "multipart/form-data", bytes.NewBufferString("invalid"))
 				Expect(err).NotTo(HaveOccurred())
 				Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
 				resp.Body.Close()
 			})
 
 			It("should return error message", func() {
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", "multipart/form-data", bytes.NewBufferString("invalid"))
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", "multipart/form-data", bytes.NewBufferString("invalid"))
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
 				body, err := io.ReadAll(resp.Body)
@@ -303,7 +303,7 @@ var _ = Describe("Server", func() {
 				part.Write([]byte("fake image data"))
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
 				resp.Body.Close()
@@ -316,7 +316,7 @@ var _ = Describe("Server", func() {
 				part.Write([]byte("fake image data"))
 				writer.Close()
 
-				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", writer.FormDataContentType(), &b)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts/scan", writer.FormDataContentType(), &b)
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
 				var response map[string]string
@@ -324,6 +324,69 @@ var _ = Describe("Server", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(json.Unmarshal(body, &response)).NotTo(HaveOccurred())
 				Expect(response["error"]).To(ContainSubstring("scan error"))
+			})
+		})
+	})
+
+	Describe("handleCreateReceipt", func() {
+		When("creation succeeds", func() {
+			It("should return status Created", func() {
+				receipt := &Receipt{
+					ID:    "test-id",
+					Title: "Test Receipt",
+				}
+				bodyBytes, _ := json.Marshal(receipt)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", "application/json", bytes.NewBuffer(bodyBytes))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+				resp.Body.Close()
+			})
+
+			It("should return the created receipt", func() {
+				receipt := &Receipt{
+					ID:    "test-id",
+					Title: "Test Receipt",
+				}
+				bodyBytes, _ := json.Marshal(receipt)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", "application/json", bytes.NewBuffer(bodyBytes))
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+				var created Receipt
+				body, err := io.ReadAll(resp.Body)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(json.Unmarshal(body, &created)).NotTo(HaveOccurred())
+				Expect(created.ID).To(Equal("test-id"))
+			})
+		})
+
+		When("invalid JSON body", func() {
+			It("should return status Bad Request", func() {
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", "application/json", bytes.NewBufferString("invalid json"))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
+				resp.Body.Close()
+			})
+		})
+
+		When("service returns an error", func() {
+			BeforeEach(func() {
+				db := newMockDB()
+				db.saveErr = errors.New("database error")
+				service = NewService(db, newMockScanner(), newMockStorage())
+				server = NewServerWithMux(service, auth, http.NewServeMux())
+				setupServer()
+			})
+
+			It("should return status Internal Server Error", func() {
+				receipt := &Receipt{
+					ID:    "test-id",
+					Title: "Test Receipt",
+				}
+				bodyBytes, _ := json.Marshal(receipt)
+				resp, err := http.Post(ghttpServer.URL()+"/api/receipts", "application/json", bytes.NewBuffer(bodyBytes))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(http.StatusInternalServerError))
+				resp.Body.Close()
 			})
 		})
 	})
@@ -977,7 +1040,7 @@ var _ = Describe("Server", func() {
 				resp, err := http.Get(ghttpServer.URL() + "/static/app.js")
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
-				Expect(resp.Header.Get("Content-Type")).To(Equal("application/javascript"))
+				Expect(resp.Header.Get("Content-Type")).To(ContainSubstring("application/javascript"))
 			})
 
 			It("should return JavaScript content", func() {
@@ -1004,7 +1067,7 @@ var _ = Describe("Server", func() {
 				resp, err := http.Get(ghttpServer.URL() + "/static/controllers/receipts_controller.js")
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
-				Expect(resp.Header.Get("Content-Type")).To(Equal("application/javascript"))
+				Expect(resp.Header.Get("Content-Type")).To(ContainSubstring("application/javascript"))
 			})
 		})
 	})

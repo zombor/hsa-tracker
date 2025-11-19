@@ -39,6 +39,40 @@
                     <div class="progress-text" data-upload-target="progressText">0 / 0</div>
                 </div>
             </form>
+
+            <div id="reviewModal" class="modal" style="display: none;" data-upload-target="modal">
+                <div class="modal-content">
+                    <h3>Review Receipt</h3>
+                    
+                    <div class="receipt-preview" data-upload-target="previewContainer">
+                        <!-- Preview content will be injected here -->
+                    </div>
+
+                    <form data-action="submit->upload#confirmReceipt">
+                        <input type="hidden" data-upload-target="receiptId">
+                        <input type="hidden" data-upload-target="receiptFilename">
+                        <input type="hidden" data-upload-target="receiptContentType">
+                        
+                        <div class="form-group">
+                            <label>Merchant/Title</label>
+                            <input type="text" data-upload-target="receiptTitle" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" data-upload-target="receiptDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (USD)</label>
+                            <input type="number" step="0.01" data-upload-target="receiptAmount" required>
+                        </div>
+                        
+                        <div class="modal-actions">
+                            <button type="button" data-action="click->upload#cancelReview">Skip/Cancel</button>
+                            <button type="submit" class="btn-primary">Save Receipt</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
 
         <div class="selection-bar" data-receipts-target="selectionBar" id="selectionBar">

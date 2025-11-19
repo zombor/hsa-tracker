@@ -1,7 +1,9 @@
 import { Controller } from "https://cdn.skypack.dev/@hotwired/stimulus@3.2.2"
 
 export default class extends Controller {
-    static targets = ["fileInput", "uploadBtn", "status", "progress", "progressFill", "progressText"]
+    static targets = ["fileInput", "uploadBtn", "status", "progress", "progressFill", "progressText", 
+                      "modal", "receiptId", "receiptFilename", "receiptContentType", 
+                      "receiptTitle", "receiptDate", "receiptAmount", "previewContainer"]
 
     connect() {
         console.log("Upload controller connected")
@@ -39,7 +41,7 @@ export default class extends Controller {
                     const formData = new FormData()
                     formData.append("file", file)
 
-                    const response = await fetch("/api/receipts", {
+                    const response = await fetch("/api/receipts/scan", {
                         method: "POST",
                         body: formData
                     })
@@ -86,8 +88,17 @@ export default class extends Controller {
                         throw new Error(errorMessage)
                     }
 
-                    successCount++
-                    uploaded = true
+                    const scanResult = await response.json()
+                    
+                    // Wait for user review
+                    try {
+                        await this.reviewReceipt(scanResult, file)
+                        successCount++
+                        uploaded = true
+                    } catch (e) {
+                        console.error("Review failed:", e)
+                        throw new Error("User cancelled review")
+                    }
                 } catch (error) {
                     // If it's a rate limit error and we haven't exceeded max retries, continue loop
                     if ((error.message.includes("429") || 
@@ -148,6 +159,91 @@ export default class extends Controller {
         }, 2000)
 
         this.uploadBtnTarget.disabled = false
+    }
+
+    reviewReceipt(data, file) {
+        return new Promise((resolve, reject) => {
+            this.reviewResolve = resolve
+            this.reviewReject = reject
+
+            this.receiptIdTarget.value = data.id
+            this.receiptFilenameTarget.value = data.filename
+            this.receiptContentTypeTarget.value = data.content_type
+            this.receiptTitleTarget.value = data.title
+            // Date needs to be YYYY-MM-DD for input[type=date]
+            this.receiptDateTarget.value = data.date.split("T")[0]
+            this.receiptAmountTarget.value = (data.amount / 100).toFixed(2)
+
+            // Show preview
+            this.previewTargetUrl = URL.createObjectURL(file)
+            this.previewContainerTarget.innerHTML = ""
+            
+            if (file.type.startsWith("image/")) {
+                const img = document.createElement("img")
+                img.src = this.previewTargetUrl
+                this.previewContainerTarget.appendChild(img)
+            } else if (file.type === "application/pdf") {
+                const embed = document.createElement("embed")
+                embed.src = this.previewTargetUrl
+                embed.type = "application/pdf"
+                this.previewContainerTarget.appendChild(embed)
+            } else {
+                this.previewContainerTarget.textContent = "Preview not available"
+            }
+
+            this.modalTarget.style.display = "flex"
+        })
+    }
+
+    async confirmReceipt(event) {
+        event.preventDefault()
+        
+        const receiptData = {
+            id: this.receiptIdTarget.value,
+            filename: this.receiptFilenameTarget.value,
+            content_type: this.receiptContentTypeTarget.value,
+            title: this.receiptTitleTarget.value,
+            date: new Date(this.receiptDateTarget.value).toISOString(),
+            amount: Math.round(parseFloat(this.receiptAmountTarget.value) * 100)
+        }
+
+        try {
+            const response = await fetch("/api/receipts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(receiptData)
+            })
+
+            if (!response.ok) {
+                throw new Error("Failed to save receipt")
+            }
+
+            const resolve = this.reviewResolve
+            this.closeModal()
+            if (resolve) resolve()
+        } catch (error) {
+            console.error("Error saving receipt:", error)
+            alert("Failed to save receipt: " + error.message)
+        }
+    }
+
+    cancelReview() {
+        const reject = this.reviewReject
+        this.closeModal()
+        if (reject) reject(new Error("Cancelled by user"))
+    }
+
+    closeModal() {
+        this.modalTarget.style.display = "none"
+        this.reviewResolve = null
+        this.reviewReject = null
+        
+        // Clean up preview URL
+        if (this.previewTargetUrl) {
+            URL.revokeObjectURL(this.previewTargetUrl)
+            this.previewTargetUrl = null
+        }
+        this.previewContainerTarget.innerHTML = ""
     }
 
     showStatus(message, type) {

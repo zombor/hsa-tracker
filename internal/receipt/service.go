@@ -97,8 +97,8 @@ func sanitizeFilename(filename string) string {
 	return base + ext
 }
 
-// ProcessReceipt uploads a receipt, scans it, and saves it
-func (s *Service) ProcessReceipt(filename string, data []byte, contentType string) (*Receipt, error) {
+// ScanReceipt uploads a receipt, scans it, and returns the extracted data without saving to DB
+func (s *Service) ScanReceipt(filename string, data []byte, contentType string) (*Receipt, error) {
 	// Generate unique ID
 	id := s.idGenerator.Generate()
 	now := s.timeSource.Now()
@@ -148,14 +148,48 @@ func (s *Service) ProcessReceipt(filename string, data []byte, contentType strin
 		UpdatedAt:   now,
 	}
 
+	return receipt, nil
+}
+
+// CreateReceipt saves a receipt to the database
+func (s *Service) CreateReceipt(receipt *Receipt) error {
+	// Ensure timestamps are set
+	now := s.timeSource.Now()
+	if receipt.CreatedAt.IsZero() {
+		receipt.CreatedAt = now
+	}
+	receipt.UpdatedAt = now
+
 	// Save to database
 	if err := s.db.SaveReceipt(receipt); err != nil {
-		// Clean up file if database save fails
-		s.storage.Delete(savedPath)
-		return nil, fmt.Errorf("saving receipt to database: %w", err)
+		return fmt.Errorf("saving receipt to database: %w", err)
 	}
 
-	return receipt, nil
+	return nil
+}
+
+// UpdateReceipt updates an existing receipt
+func (s *Service) UpdateReceipt(receipt *Receipt) error {
+	// Verify receipt exists
+	existing, err := s.db.GetReceipt(receipt.ID)
+	if err != nil {
+		return fmt.Errorf("getting receipt: %w", err)
+	}
+
+	// Preserve original CreatedAt and Filename
+	receipt.CreatedAt = existing.CreatedAt
+	receipt.Filename = existing.Filename
+	receipt.ContentType = existing.ContentType
+
+	// Update timestamp
+	receipt.UpdatedAt = s.timeSource.Now()
+
+	// Save to database
+	if err := s.db.SaveReceipt(receipt); err != nil {
+		return fmt.Errorf("saving receipt to database: %w", err)
+	}
+
+	return nil
 }
 
 // GetReceipt retrieves a receipt by ID

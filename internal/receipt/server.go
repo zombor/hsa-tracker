@@ -93,7 +93,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 // setCORSHeaders sets CORS headers on a response
 func (s *Server) setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
@@ -129,9 +129,11 @@ func (s *Server) registerRoutes() {
 	// API endpoints - receipts (most specific paths first)
 	s.mux.HandleFunc("GET /api/receipts/{id}/file", s.requireAuth(s.handleGetReceiptFile))
 	s.mux.HandleFunc("GET /api/receipts/{id}", s.requireAuth(s.handleGetReceipt))
+	s.mux.HandleFunc("PUT /api/receipts/{id}", s.requireAuth(s.handleUpdateReceipt))
 	s.mux.HandleFunc("DELETE /api/receipts/{id}", s.requireAuth(s.handleDeleteReceipt))
 	s.mux.HandleFunc("GET /api/receipts", s.requireAuth(s.handleListReceipts))
-	s.mux.HandleFunc("POST /api/receipts", s.requireAuth(s.handleUploadReceipt))
+	s.mux.HandleFunc("POST /api/receipts", s.requireAuth(s.handleCreateReceipt))
+	s.mux.HandleFunc("POST /api/receipts/scan", s.requireAuth(s.handleScanReceipt))
 
 	// API endpoints - reimbursements
 	s.mux.HandleFunc("GET /api/reimbursements/{id}", s.requireAuth(s.handleGetReimbursement))

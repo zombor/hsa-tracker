@@ -18,7 +18,7 @@ func corsError(w http.ResponseWriter, message string, code int) {
 // setCORSHeaders sets CORS headers on a response
 func setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
@@ -45,8 +45,8 @@ func (s *Server) handleListReceipts(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleUploadReceipt handles receipt upload
-func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
+// handleScanReceipt handles receipt upload and scanning
+func (s *Server) handleScanReceipt(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form (max 50MB to handle high-resolution phone photos)
 	// Increase from 10MB to 50MB for better mobile support
 	maxFormSize := int64(50 << 20) // 50MB
@@ -125,14 +125,14 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 			contentType = "application/octet-stream"
 		}
 	}
-	
+
 	// Normalize content type for common phone formats
 	contentType = strings.ToLower(strings.TrimSpace(contentType))
 	// Preserve HEIC/HEIF MIME types so conversion logic can detect them
 	// The conversion logic will handle converting HEIC to PNG
 
-	// Process receipt
-	receipt, err := s.service.ProcessReceipt(header.Filename, data, contentType)
+	// Scan receipt
+	receipt, err := s.service.ScanReceipt(header.Filename, data, contentType)
 	if err != nil {
 		slog.Error("Error processing receipt", "filename", header.Filename, "error", err)
 		setCORSHeaders(w)
@@ -141,6 +141,28 @@ func (s *Server) handleUploadReceipt(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
 		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(receipt); err != nil {
+		slog.Error("Error encoding response", "error", err)
+	}
+}
+
+// handleCreateReceipt handles receipt creation/confirmation
+func (s *Server) handleCreateReceipt(w http.ResponseWriter, r *http.Request) {
+	var receipt Receipt
+	if err := json.NewDecoder(r.Body).Decode(&receipt); err != nil {
+		slog.Error("Error decoding receipt", "error", err)
+		corsError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.service.CreateReceipt(&receipt); err != nil {
+		slog.Error("Error creating receipt", "error", err)
+		corsError(w, "Error creating receipt", http.StatusInternalServerError)
 		return
 	}
 
@@ -185,6 +207,37 @@ func (s *Server) handleGetReceiptFile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", contentType)
 	w.Write(data)
+}
+
+// handleUpdateReceipt handles receipt updates
+func (s *Server) handleUpdateReceipt(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		corsError(w, "Receipt ID required", http.StatusBadRequest)
+		return
+	}
+
+	var receipt Receipt
+	if err := json.NewDecoder(r.Body).Decode(&receipt); err != nil {
+		slog.Error("Error decoding receipt", "error", err)
+		corsError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Ensure the ID matches the path parameter
+	receipt.ID = id
+
+	if err := s.service.UpdateReceipt(&receipt); err != nil {
+		slog.Error("Error updating receipt", "error", err)
+		corsError(w, "Error updating receipt", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(receipt); err != nil {
+		slog.Error("Error encoding response", "error", err)
+	}
 }
 
 // handleDeleteReceipt deletes a receipt

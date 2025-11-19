@@ -84,6 +84,7 @@ export default class extends Controller {
                     <span class="receipt-amount">${amount}</span>
                     <div class="receipt-actions">
                         <button class="btn-small" data-action="click->receipts#view" data-receipt-id="${this.escapeHtml(receipt.id)}">View</button>
+                        <button class="btn-small" data-action="click->receipts#edit" data-receipt-id="${this.escapeHtml(receipt.id)}">Edit</button>
                         ${!isReimbursed ? `<button class="btn-small btn-danger" data-action="click->receipts#delete" data-receipt-id="${this.escapeHtml(receipt.id)}">Delete</button>` : ""}
                     </div>
                 </div>
@@ -159,6 +160,214 @@ export default class extends Controller {
             alert("Receipts marked as reimbursed successfully!")
         } catch (error) {
             alert("Error creating reimbursement: " + error.message)
+        }
+    }
+
+    async edit(event) {
+        const receiptId = event.currentTarget.dataset.receiptId
+        
+        try {
+            // Fetch receipt data
+            const response = await fetch("/api/receipts/" + receiptId)
+            if (!response.ok) throw new Error("Failed to load receipt")
+            
+            const receipt = await response.json()
+            
+            // Fetch receipt file for preview
+            const fileResponse = await fetch("/api/receipts/" + receiptId + "/file")
+            if (!fileResponse.ok) throw new Error("Failed to load receipt file")
+            
+            const blob = await fileResponse.blob()
+            const fileUrl = URL.createObjectURL(blob)
+            
+            // Show edit modal
+            this.showEditModal(receipt, fileUrl, blob.type)
+        } catch (error) {
+            alert("Error loading receipt: " + error.message)
+        }
+    }
+
+    showEditModal(receipt, fileUrl, contentType) {
+        // Create or get edit modal
+        let modal = document.getElementById("editModal")
+        if (!modal) {
+            modal = this.createEditModal()
+            document.body.appendChild(modal)
+        }
+        
+        // Populate form
+        const receiptIdInput = modal.querySelector('[data-edit-target="receiptId"]')
+        const receiptTitleInput = modal.querySelector('[data-edit-target="receiptTitle"]')
+        const receiptDateInput = modal.querySelector('[data-edit-target="receiptDate"]')
+        const receiptAmountInput = modal.querySelector('[data-edit-target="receiptAmount"]')
+        const previewContainer = modal.querySelector('[data-edit-target="previewContainer"]')
+        
+        receiptIdInput.value = receipt.id
+        receiptTitleInput.value = receipt.title
+        receiptDateInput.value = new Date(receipt.date).toISOString().split("T")[0]
+        receiptAmountInput.value = (receipt.amount / 100).toFixed(2)
+        
+        // Show preview
+        previewContainer.innerHTML = ""
+        if (contentType.startsWith("image/")) {
+            const img = document.createElement("img")
+            img.src = fileUrl
+            previewContainer.appendChild(img)
+        } else if (contentType === "application/pdf") {
+            const embed = document.createElement("embed")
+            embed.src = fileUrl
+            embed.type = "application/pdf"
+            previewContainer.appendChild(embed)
+        } else {
+            previewContainer.textContent = "Preview not available"
+        }
+        
+        // Store file URL for cleanup
+        modal.dataset.fileUrl = fileUrl
+        
+        // Show modal
+        modal.style.display = "flex"
+    }
+
+    createEditModal() {
+        const modal = document.createElement("div")
+        modal.id = "editModal"
+        modal.className = "modal"
+        modal.style.display = "none"
+        
+        // Add click-outside-to-close handler
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) {
+                this.closeEditModal()
+            }
+        })
+        
+        const modalContent = document.createElement("div")
+        modalContent.className = "modal-content"
+        
+        modalContent.innerHTML = `
+                <h3>Edit Receipt</h3>
+                
+                <div class="receipt-preview" data-edit-target="previewContainer">
+                    <!-- Preview content will be injected here -->
+                </div>
+
+                <form class="edit-receipt-form">
+                    <input type="hidden" data-edit-target="receiptId">
+                    
+                    <div class="form-group">
+                        <label>Merchant/Title</label>
+                        <input type="text" data-edit-target="receiptTitle" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" data-edit-target="receiptDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount (USD)</label>
+                        <input type="number" step="0.01" data-edit-target="receiptAmount" required>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="cancel-edit-btn">Cancel</button>
+                        <button type="submit" class="btn-primary">Save Changes</button>
+                    </div>
+                </form>
+        `
+        
+        modal.appendChild(modalContent)
+        
+        // Add cancel button handler
+        const cancelBtn = modal.querySelector(".cancel-edit-btn")
+        if (cancelBtn) {
+            cancelBtn.addEventListener("click", () => this.closeEditModal())
+        }
+        
+        // Add form submission handler
+        const form = modal.querySelector(".edit-receipt-form")
+        if (form) {
+            form.addEventListener("submit", (e) => {
+                e.preventDefault()
+                this.updateReceipt(e)
+            })
+        }
+        
+        return modal
+    }
+
+    async updateReceipt(event) {
+        event.preventDefault()
+        
+        const modal = document.getElementById("editModal")
+        if (!modal) {
+            console.error("Edit modal not found")
+            return
+        }
+        
+        const receiptId = modal.querySelector('[data-edit-target="receiptId"]').value
+        const title = modal.querySelector('[data-edit-target="receiptTitle"]').value
+        const date = modal.querySelector('[data-edit-target="receiptDate"]').value
+        const amount = modal.querySelector('[data-edit-target="receiptAmount"]').value
+        
+        if (!receiptId || !title || !date || !amount) {
+            alert("Please fill in all fields")
+            return
+        }
+        
+        const receiptData = {
+            id: receiptId,
+            title: title,
+            date: new Date(date).toISOString(),
+            amount: Math.round(parseFloat(amount) * 100)
+        }
+        
+        try {
+            const response = await fetch("/api/receipts/" + receiptId, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(receiptData)
+            })
+            
+            if (!response.ok) {
+                let errorMessage = "Failed to update receipt"
+                try {
+                    const errorData = await response.json()
+                    if (errorData.error) {
+                        errorMessage = errorData.error
+                    }
+                } catch (e) {
+                    errorMessage = response.statusText || "Failed to update receipt"
+                }
+                throw new Error(errorMessage)
+            }
+            
+            const updatedReceipt = await response.json()
+            console.log("Receipt updated successfully:", updatedReceipt)
+            
+            this.closeEditModal()
+            this.load()
+        } catch (error) {
+            console.error("Error updating receipt:", error)
+            alert("Error updating receipt: " + error.message)
+        }
+    }
+
+    closeEditModal() {
+        const modal = document.getElementById("editModal")
+        if (modal) {
+            modal.style.display = "none"
+            
+            // Clean up file URL
+            if (modal.dataset.fileUrl) {
+                URL.revokeObjectURL(modal.dataset.fileUrl)
+                delete modal.dataset.fileUrl
+            }
+            
+            // Clear preview
+            const previewContainer = modal.querySelector('[data-edit-target="previewContainer"]')
+            if (previewContainer) {
+                previewContainer.innerHTML = ""
+            }
         }
     }
 
